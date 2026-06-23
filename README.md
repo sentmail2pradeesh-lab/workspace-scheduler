@@ -300,7 +300,7 @@ Do **NOT** commit:
 **Pradeeshwaran M**  
 Technical Assessment — Real-Time Collaborative Workspace Scheduler
 
-GitHub: [https://github.com/sentmail2pradeesh-lab/workspace-scheduler](https://github.com/YOUR_USERNAME/workspace-scheduler)
+GitHub: [https://github.com/sentmail2pradeesh-lab/workspace-scheduler](https://github.com/sentmail2pradeesh-lab/workspace-scheduler)
 
 ---
 
