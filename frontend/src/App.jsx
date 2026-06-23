@@ -18,15 +18,17 @@ function AppContent() {
     return <AuthPage onLogin={login} onRegister={register} />;
   }
 
-  return <Calendar />;
+  return (
+    <SocketProvider>
+      <Calendar />
+    </SocketProvider>
+  );
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <SocketProvider>
-        <AppContent />
-      </SocketProvider>
+      <AppContent />
     </AuthProvider>
   );
 }

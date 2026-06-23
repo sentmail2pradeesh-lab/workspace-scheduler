@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -23,49 +23,52 @@ export default function Calendar() {
   const [error, setError] = useState('');
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [cancelingId, setCancelingId] = useState(null);
+  const dateRef = useRef(date);
 
-  const fetchBookings = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
+    dateRef.current = date;
+  }, [date]);
+
+  const refreshBookings = useCallback(async (showLoader = false) => {
+    if (showLoader) setLoading(true);
     setError('');
     try {
-      const { bookings: data } = await api.getBookings(date);
+      const { bookings: data } = await api.getBookings(dateRef.current);
       setBookings(data);
     } catch (err) {
       setError(err.message);
       setBookings([]);
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
-  }, [date]);
+  }, []);
 
   useEffect(() => {
-    fetchBookings();
-  }, [fetchBookings]);
+    refreshBookings(true);
+  }, [date, refreshBookings]);
 
   useEffect(() => {
     if (!socket) return;
 
-    const onCreated = ({ date: eventDate, booking }) => {
-      if (eventDate !== date) return;
-      setBookings((prev) => {
-        if (prev.some((b) => b.id === booking.id)) return prev;
-        return [...prev, booking].sort((a, b) => a.startTime.localeCompare(b.startTime));
-      });
+    const onScheduleUpdated = ({ date: eventDate, bookings: updated }) => {
+      if (eventDate !== dateRef.current) return;
+      setBookings(updated);
+      setActionError('');
     };
 
-    const onDeleted = ({ date: eventDate, bookingId }) => {
-      if (eventDate !== date) return;
-      setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    const onReconnect = () => {
+      refreshBookings(false);
     };
 
-    socket.on('booking:created', onCreated);
-    socket.on('booking:deleted', onDeleted);
+    socket.on('schedule:updated', onScheduleUpdated);
+    socket.on('connect', onReconnect);
 
     return () => {
-      socket.off('booking:created', onCreated);
-      socket.off('booking:deleted', onDeleted);
+      socket.off('schedule:updated', onScheduleUpdated);
+      socket.off('connect', onReconnect);
     };
-  }, [socket, date]);
+  }, [socket, refreshBookings]);
 
   const handleDateChange = (e) => {
     const val = e.target.value;
@@ -76,11 +79,8 @@ export default function Calendar() {
   const handleBook = async (payload) => {
     setActionError('');
     try {
-      const { booking } = await api.createBooking(payload);
-      setBookings((prev) => {
-        if (prev.some((b) => b.id === booking.id)) return prev;
-        return [...prev, booking].sort((a, b) => a.startTime.localeCompare(b.startTime));
-      });
+      await api.createBooking(payload);
+      await refreshBookings(false);
     } catch (err) {
       setActionError(err.message);
       throw err;
@@ -88,12 +88,24 @@ export default function Calendar() {
   };
 
   const handleCancel = async (bookingId, override = false) => {
+    const id = Number(bookingId);
+    if (cancelingId === id) return;
+
     setActionError('');
+    setCancelingId(id);
+
     try {
-      await api.cancelBooking(bookingId, override);
-      setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+      await api.cancelBooking(id, override);
+      setBookings((prev) => prev.filter((b) => Number(b.id) !== id));
     } catch (err) {
-      setActionError(err.message);
+      if (err.message === 'Booking not found') {
+        await refreshBookings(false);
+        setActionError('This booking was already cancelled.');
+      } else {
+        setActionError(err.message);
+      }
+    } finally {
+      setCancelingId(null);
     }
   };
 
@@ -128,12 +140,18 @@ export default function Calendar() {
             <h1 className="text-base font-semibold text-gray-900">Premium Conference Room</h1>
             <p className="text-xs text-gray-500">{user.name} · {user.role}</p>
           </div>
-          <button
-            onClick={logout}
-            className="text-sm px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
-          >
-            Sign out
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-green-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              Live
+            </span>
+            <button
+              onClick={logout}
+              className="text-sm px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -141,7 +159,7 @@ export default function Calendar() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
             <h2 className="text-lg font-medium text-gray-900">{formatDisplayDate(date)}</h2>
-            <p className="text-xs text-gray-500">9:00 AM – 6:00 PM</p>
+            <p className="text-xs text-gray-500">9:00 AM – 6:00 PM · 30-minute slots</p>
           </div>
           <input
             type="date"
@@ -199,7 +217,7 @@ export default function Calendar() {
                 <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs text-gray-500">
                   <th className="px-4 py-2.5 w-28 font-medium">Time</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="px-4 py-2.5 w-36 font-medium text-right">Action</th>
+                  <th className="px-4 py-2.5 w-40 font-medium text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -209,8 +227,9 @@ export default function Calendar() {
                   const booking = getBookingForSlot(bookings, slotStart, slotEnd);
                   const isReserved = !!booking;
                   const isStart = isSlotStartOfBooking(booking, slotStart);
-                  const isOwn = booking?.userId === user.id;
+                  const isOwn = Number(booking?.userId) === Number(user.id);
                   const isPast = isSlotInPast(date, slot.hour, slot.minute);
+                  const isCanceling = booking && cancelingId === Number(booking.id);
 
                   return (
                     <tr
@@ -224,7 +243,9 @@ export default function Calendar() {
                         ) : isReserved ? (
                           isStart ? (
                             <span className="text-gray-800">
-                              Booked by {booking.userName}
+                              <span className="font-medium text-red-700">Reserved</span>
+                              {' · '}
+                              {booking.userName}
                               <span className="text-gray-500 ml-1">
                                 ({formatTime12(booking.startTime)}–{formatTime12(booking.endTime)})
                               </span>
@@ -241,24 +262,29 @@ export default function Calendar() {
                           <div className="flex justify-end gap-2">
                             {isOwn && (
                               <button
+                                type="button"
+                                disabled={isCanceling}
                                 onClick={() => handleCancel(booking.id)}
-                                className="text-xs px-2.5 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                className="text-xs px-2.5 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                               >
-                                Cancel
+                                {isCanceling ? 'Cancelling…' : 'Cancel'}
                               </button>
                             )}
                             {isSupervisor && !isOwn && (
                               <button
+                                type="button"
+                                disabled={isCanceling}
                                 onClick={() => handleCancel(booking.id, true)}
-                                className="text-xs px-2.5 py-1 rounded border border-amber-400 text-amber-800 hover:bg-amber-50"
+                                className="text-xs px-2.5 py-1 rounded border border-amber-400 text-amber-800 hover:bg-amber-50 disabled:opacity-50"
                               >
-                                Override
+                                {isCanceling ? 'Cancelling…' : 'Cancel Override'}
                               </button>
                             )}
                           </div>
                         )}
                         {!isPast && !isReserved && (
                           <button
+                            type="button"
                             onClick={() => setSelectedSlot(slot)}
                             className="text-xs px-2.5 py-1 rounded bg-gray-800 text-white hover:bg-gray-900"
                           >

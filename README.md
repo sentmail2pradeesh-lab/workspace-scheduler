@@ -64,9 +64,9 @@ App runs at `http://localhost:5173`.
 
 ## Registration
 
-Users self-register via the **Register** tab with email OTP verification. Mobile number is optional. No pre-defined accounts.
+Users self-register via the **Register** tab with email OTP verification. Mobile number is optional.
 
-In development, the OTP is shown in the UI and logged to the backend console.
+Configure SMTP in `backend/.env` (see `.env.example`) so verification codes are sent to the user's email.
 
 ## API Overview
 
@@ -83,8 +83,7 @@ In development, the OTP is shown in the UI and logged to the backend console.
 
 ### WebSocket Events
 
-- `booking:created` — `{ date, booking }`
-- `booking:deleted` — `{ date, bookingId }`
+- `schedule:updated` — `{ date, bookings }` — broadcast after any booking or cancellation (including supervisor override)
 
 ## Overlap Prevention
 

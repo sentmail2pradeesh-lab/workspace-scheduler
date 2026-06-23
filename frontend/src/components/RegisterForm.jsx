@@ -11,7 +11,6 @@ export default function RegisterForm({ onRegister }) {
     role: 'Standard',
   });
   const [otp, setOtp] = useState('');
-  const [devOtp, setDevOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -33,8 +32,7 @@ export default function RegisterForm({ onRegister }) {
     setError('');
     setLoading(true);
     try {
-      const res = await api.requestOtp(buildPayload());
-      if (res.devOtp) setDevOtp(res.devOtp);
+      await api.requestOtp(buildPayload());
       setStep('otp');
     } catch (err) {
       setError(err.message);
@@ -66,12 +64,6 @@ export default function RegisterForm({ onRegister }) {
         {error && (
           <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">
             {error}
-          </div>
-        )}
-
-        {devOtp && (
-          <div className="bg-yellow-50 text-yellow-800 text-sm px-3 py-2 rounded border border-yellow-200">
-            Dev OTP: <span className="font-mono font-medium">{devOtp}</span>
           </div>
         )}
 

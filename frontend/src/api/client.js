@@ -36,5 +36,5 @@ export const api = {
     request('/bookings', { method: 'POST', body: JSON.stringify(payload) }),
 
   cancelBooking: (id, override = false) =>
-    request(`/bookings/${id}${override ? '?override=true' : ''}`, { method: 'DELETE' }),
+    request(`/bookings/${Number(id)}${override ? '?override=true' : ''}`, { method: 'DELETE' }),
 };
