@@ -5,23 +5,9 @@ const {
   createBooking,
   deleteBooking,
 } = require('../services/bookings');
+const { formatBooking, broadcastSchedule } = require('../services/scheduleBroadcast');
 
 const router = express.Router();
-
-function formatBooking(row) {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    date: row.date instanceof Date
-      ? row.date.toISOString().slice(0, 10)
-      : String(row.date).slice(0, 10),
-    startTime: String(row.start_time).slice(0, 5),
-    endTime: String(row.end_time).slice(0, 5),
-    userName: row.user_name,
-    userEmail: row.user_email,
-    createdAt: row.created_at,
-  };
-}
 
 router.get('/', authenticate, async (req, res) => {
   const { date } = req.query;
@@ -62,9 +48,13 @@ router.post('/', authenticate, async (req, res) => {
 
     const full = await getBookingsByDate(date);
     const created = full.find((b) => b.id === row.id);
+    const booking = formatBooking(
+      created || { ...row, user_name: req.user.name, user_email: req.user.email }
+    );
 
-    const booking = formatBooking(created || { ...row, user_name: req.user.name, user_email: req.user.email });
-    req.app.get('io').emit('booking:created', { date, booking });
+    const io = req.app.get('io');
+    await broadcastSchedule(io, date);
+
     res.status(201).json({ booking });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || 'Failed to create booking' });
@@ -87,16 +77,14 @@ router.delete('/:id', authenticate, async (req, res) => {
       override,
     });
 
-    const date = deleted.date instanceof Date
-      ? deleted.date.toISOString().slice(0, 10)
-      : String(deleted.date).slice(0, 10);
+    const io = req.app.get('io');
+    await broadcastSchedule(io, deleted.date);
 
-    req.app.get('io').emit('booking:deleted', {
-      date,
+    res.json({
+      success: true,
       bookingId: deleted.id,
+      override,
     });
-
-    res.json({ success: true, bookingId: deleted.id });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || 'Failed to delete booking' });
   }

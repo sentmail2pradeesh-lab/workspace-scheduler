@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const pool = require('../db/pool');
+const { sendOtpEmail } = require('./email');
 
 const OTP_EXPIRY_MINUTES = 10;
 const MAX_OTP_ATTEMPTS = 5;
@@ -32,9 +33,8 @@ function validateRole(role) {
   }
 }
 
-async function sendOtpEmail(email, otp) {
-  // MVP: log OTP to server console. Replace with nodemailer/SendGrid in production.
-  console.log(`[OTP] Email ${email}: ${otp} (expires in ${OTP_EXPIRY_MINUTES} min)`);
+async function sendRegistrationOtp(email, otp) {
+  await sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
 }
 
 async function requestRegistrationOtp({ name, email, mobile, password, role }) {
@@ -89,18 +89,12 @@ async function requestRegistrationOtp({ name, email, mobile, password, role }) {
     [normalizedEmail, normalizedMobile, name.trim(), passwordHash, role, otpHash, expiresAt]
   );
 
-  await sendOtpEmail(normalizedEmail, otp);
+  await sendRegistrationOtp(normalizedEmail, otp);
 
-  const response = {
-    message: 'OTP sent to your email address',
+  return {
+    message: 'Verification code sent to your email',
     expiresInMinutes: OTP_EXPIRY_MINUTES,
   };
-
-  if (process.env.NODE_ENV !== 'production') {
-    response.devOtp = otp;
-  }
-
-  return response;
 }
 
 async function verifyRegistrationOtp({ email, otp }) {
