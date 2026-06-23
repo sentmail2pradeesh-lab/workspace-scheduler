@@ -9,7 +9,13 @@ const router = express.Router();
 
 function issueToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, role: user.role, mobile: user.mobile },
+    {
+      id: Number(user.id),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      mobile: user.mobile,
+    },
     process.env.JWT_SECRET,
     { expiresIn: '24h' }
   );
@@ -17,7 +23,7 @@ function issueToken(user) {
 
 function formatUser(user) {
   return {
-    id: user.id,
+    id: Number(user.id),
     email: user.email,
     mobile: user.mobile,
     name: user.name,
@@ -76,7 +82,15 @@ router.post('/login', async (req, res) => {
 });
 
 router.get('/me', authenticate, (req, res) => {
-  res.json({ user: req.user });
+  res.json({
+    user: {
+      id: req.user.id,
+      email: req.user.email,
+      name: req.user.name,
+      role: req.user.role,
+      mobile: req.user.mobile,
+    },
+  });
 });
 
 module.exports = router;

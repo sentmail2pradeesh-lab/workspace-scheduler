@@ -8,7 +8,14 @@ function authenticate(req, res, next) {
 
   try {
     const token = header.slice(7);
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = {
+      id: Number(payload.id),
+      email: payload.email,
+      name: payload.name,
+      role: payload.role,
+      mobile: payload.mobile || null,
+    };
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });

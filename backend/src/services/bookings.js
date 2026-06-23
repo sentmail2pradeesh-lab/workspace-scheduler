@@ -34,23 +34,26 @@ function validateBookingDateTime(date, startTime) {
   }
 }
 
+async function fetchBookingsForDate(date) {
+  const result = await pool.query(
+    `SELECT b.id, b.user_id, b.date, b.start_time, b.end_time, b.created_at,
+            u.name AS user_name, u.email AS user_email
+     FROM bookings b
+     JOIN users u ON u.id = b.user_id
+     WHERE b.date = $1::date
+     ORDER BY b.start_time`,
+    [date]
+  );
+  return result.rows;
+}
+
 async function getBookingsByDate(date) {
   if (date < todayDateString()) {
     const err = new Error('Cannot view schedules for past dates');
     err.status = 400;
     throw err;
   }
-
-  const result = await pool.query(
-    `SELECT b.id, b.user_id, b.date, b.start_time, b.end_time, b.created_at,
-            u.name AS user_name, u.email AS user_email
-     FROM bookings b
-     JOIN users u ON u.id = b.user_id
-     WHERE b.date = $1
-     ORDER BY b.start_time`,
-    [date]
-  );
-  return result.rows;
+  return fetchBookingsForDate(date);
 }
 
 async function createBooking({ userId, date, startTime, endTime }) {
@@ -68,7 +71,7 @@ async function createBooking({ userId, date, startTime, endTime }) {
 
     const overlap = await client.query(
       `SELECT id FROM bookings
-       WHERE date = $1
+       WHERE date = $1::date
          AND start_time < $3::time
          AND end_time > $2::time
        FOR UPDATE`,
@@ -83,9 +86,9 @@ async function createBooking({ userId, date, startTime, endTime }) {
 
     const result = await client.query(
       `INSERT INTO bookings (user_id, date, start_time, end_time)
-       VALUES ($1, $2, $3, $4)
+       VALUES ($1, $2::date, $3::time, $4::time)
        RETURNING id, user_id, date, start_time, end_time, created_at`,
-      [userId, date, startTime, endTime]
+      [Number(userId), date, startTime, endTime]
     );
 
     await client.query('COMMIT');
@@ -99,12 +102,15 @@ async function createBooking({ userId, date, startTime, endTime }) {
 }
 
 async function deleteBooking({ bookingId, userId, role, override = false }) {
+  const id = Number(bookingId);
+  const uid = Number(userId);
+
   const existing = await pool.query(
     `SELECT b.*, u.name AS user_name
      FROM bookings b
      JOIN users u ON u.id = b.user_id
      WHERE b.id = $1`,
-    [bookingId]
+    [id]
   );
 
   if (existing.rows.length === 0) {
@@ -114,7 +120,7 @@ async function deleteBooking({ bookingId, userId, role, override = false }) {
   }
 
   const booking = existing.rows[0];
-  const isOwner = booking.user_id === userId;
+  const isOwner = Number(booking.user_id) === uid;
   const isSupervisorOverride = override && role === 'Supervisor';
 
   if (!isOwner && !isSupervisorOverride) {
@@ -123,7 +129,7 @@ async function deleteBooking({ bookingId, userId, role, override = false }) {
     throw err;
   }
 
-  await pool.query('DELETE FROM bookings WHERE id = $1', [bookingId]);
+  await pool.query('DELETE FROM bookings WHERE id = $1', [id]);
   return booking;
 }
 
@@ -131,6 +137,7 @@ module.exports = {
   WORK_START,
   WORK_END,
   todayDateString,
+  fetchBookingsForDate,
   getBookingsByDate,
   createBooking,
   deleteBooking,

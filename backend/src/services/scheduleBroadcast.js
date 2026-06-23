@@ -1,10 +1,10 @@
 const { formatDateString } = require('../utils/date');
-const { getBookingsByDate } = require('./bookings');
+const { fetchBookingsForDate } = require('./bookings');
 
 function formatBooking(row) {
   return {
-    id: row.id,
-    userId: row.user_id,
+    id: Number(row.id),
+    userId: Number(row.user_id),
     date: formatDateString(row.date),
     startTime: String(row.start_time).slice(0, 5),
     endTime: String(row.end_time).slice(0, 5),
@@ -15,12 +15,21 @@ function formatBooking(row) {
 }
 
 async function broadcastSchedule(io, date) {
-  const dateStr = formatDateString(date);
-  const rows = await getBookingsByDate(dateStr);
-  io.emit('schedule:updated', {
-    date: dateStr,
-    bookings: rows.map(formatBooking),
-  });
+  if (!io) {
+    console.error('Socket.io not available for broadcast');
+    return;
+  }
+
+  try {
+    const dateStr = formatDateString(date);
+    const rows = await fetchBookingsForDate(dateStr);
+    io.emit('schedule:updated', {
+      date: dateStr,
+      bookings: rows.map(formatBooking),
+    });
+  } catch (err) {
+    console.error('Schedule broadcast failed:', err.message);
+  }
 }
 
 module.exports = { formatBooking, broadcastSchedule };

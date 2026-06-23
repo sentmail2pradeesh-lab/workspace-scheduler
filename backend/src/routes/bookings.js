@@ -47,13 +47,12 @@ router.post('/', authenticate, async (req, res) => {
     });
 
     const full = await getBookingsByDate(date);
-    const created = full.find((b) => b.id === row.id);
+    const created = full.find((b) => Number(b.id) === Number(row.id));
     const booking = formatBooking(
       created || { ...row, user_name: req.user.name, user_email: req.user.email }
     );
 
-    const io = req.app.get('io');
-    await broadcastSchedule(io, date);
+    await broadcastSchedule(req.app.get('io'), date);
 
     res.status(201).json({ booking });
   } catch (err) {
@@ -77,12 +76,11 @@ router.delete('/:id', authenticate, async (req, res) => {
       override,
     });
 
-    const io = req.app.get('io');
-    await broadcastSchedule(io, deleted.date);
+    await broadcastSchedule(req.app.get('io'), deleted.date);
 
     res.json({
       success: true,
-      bookingId: deleted.id,
+      bookingId: Number(deleted.id),
       override,
     });
   } catch (err) {
