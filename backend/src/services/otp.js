@@ -11,7 +11,13 @@ function generateOtp() {
 }
 
 function normalizeEmail(email) {
-  return email.toLowerCase().trim();
+  const normalized = email.toLowerCase().trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    const err = new Error('Enter a valid email address');
+    err.status = 400;
+    throw err;
+  }
+  return normalized;
 }
 
 function normalizeMobile(mobile) {

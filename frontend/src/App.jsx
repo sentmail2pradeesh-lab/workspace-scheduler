@@ -8,8 +8,9 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 text-sm text-gray-500">
-        Loading…
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 gap-3">
+        <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
+        <p className="text-sm text-slate-500">Loading workspace…</p>
       </div>
     );
   }

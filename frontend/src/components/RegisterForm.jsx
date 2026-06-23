@@ -1,5 +1,11 @@
 import { useState } from 'react';
 import { api } from '../api/client';
+import { validateRegisterForm } from '../utils/validation';
+
+function FieldError({ message }) {
+  if (!message) return null;
+  return <p className="text-xs text-red-600 mt-1">{message}</p>;
+}
 
 export default function RegisterForm({ onRegister }) {
   const [step, setStep] = useState('details');
@@ -10,16 +16,21 @@ export default function RegisterForm({ onRegister }) {
     password: '',
     role: 'Standard',
   });
+  const [fieldErrors, setFieldErrors] = useState({});
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  const update = (field) => (e) => {
+    setForm((f) => ({ ...f, [field]: e.target.value }));
+    setFieldErrors((fe) => ({ ...fe, [field]: undefined }));
+  };
 
   const buildPayload = () => {
     const payload = {
-      name: form.name,
-      email: form.email,
+      name: form.name.trim(),
+      email: form.email.trim().toLowerCase(),
       password: form.password,
       role: form.role,
     };
@@ -30,9 +41,15 @@ export default function RegisterForm({ onRegister }) {
   const handleRequestOtp = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
+    const errors = validateRegisterForm(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setLoading(true);
     try {
-      await api.requestOtp(buildPayload());
+      const res = await api.requestOtp(buildPayload());
+      setSuccess(res.message || 'Verification code sent to your email');
       setStep('otp');
     } catch (err) {
       setError(err.message);
@@ -44,9 +61,29 @@ export default function RegisterForm({ onRegister }) {
   const handleVerify = async (e) => {
     e.preventDefault();
     setError('');
+    if (otp.length !== 6) {
+      setError('Enter the 6-digit verification code');
+      return;
+    }
+
     setLoading(true);
     try {
-      await onRegister({ email: form.email, otp });
+      await onRegister({ email: form.email.trim().toLowerCase(), otp });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    try {
+      const res = await api.requestOtp(buildPayload());
+      setSuccess(res.message || 'A new code has been sent');
+      setOtp('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -56,123 +93,104 @@ export default function RegisterForm({ onRegister }) {
 
   if (step === 'otp') {
     return (
-      <form onSubmit={handleVerify} className="space-y-4">
-        <p className="text-sm text-gray-600">
-          Enter the 6-digit code sent to <span className="font-medium text-gray-800">{form.email}</span>
-        </p>
+      <form onSubmit={handleVerify} className="space-y-5" noValidate>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Verify your email</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Enter the code sent to <span className="font-medium text-slate-800">{form.email.trim()}</span>
+          </p>
+        </div>
 
-        {error && (
-          <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">
-            {error}
-          </div>
-        )}
+        {error && <div className="alert-error">{error}</div>}
+        {success && <div className="alert-success">{success}</div>}
 
         <div>
-          <label className="block text-sm text-gray-700 mb-1">Verification code</label>
+          <label htmlFor="otp" className="block text-sm font-medium text-slate-700 mb-1.5">
+            Verification code
+          </label>
           <input
+            id="otp"
             type="text"
             inputMode="numeric"
+            autoComplete="one-time-code"
             maxLength={6}
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-            className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-500 text-center text-lg tracking-widest font-mono"
+            className="input-field text-center text-xl tracking-[0.4em] font-mono"
             placeholder="000000"
-            required
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={loading || otp.length !== 6}
-          className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 disabled:opacity-60 text-white text-sm font-medium rounded transition"
-        >
+        <button type="submit" disabled={loading || otp.length !== 6} className="btn-primary w-full">
           {loading ? 'Verifying…' : 'Create account'}
         </button>
 
-        <button
-          type="button"
-          onClick={() => { setStep('details'); setOtp(''); setError(''); }}
-          className="w-full text-sm text-gray-500 hover:text-gray-700"
-        >
-          Back
-        </button>
+        <div className="flex items-center justify-between text-sm">
+          <button
+            type="button"
+            onClick={() => { setStep('details'); setOtp(''); setError(''); setSuccess(''); }}
+            className="text-slate-500 hover:text-slate-800"
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleResend}
+            className="text-slate-700 hover:text-slate-900 font-medium disabled:opacity-50"
+          >
+            Resend code
+          </button>
+        </div>
       </form>
     );
   }
 
   return (
-    <form onSubmit={handleRequestOtp} className="space-y-4">
-      {error && (
-        <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">
-          {error}
-        </div>
-      )}
+    <form onSubmit={handleRequestOtp} className="space-y-4" noValidate>
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Create an account</h2>
+        <p className="text-sm text-slate-500 mt-1">Register with email verification</p>
+      </div>
+
+      {error && <div className="alert-error">{error}</div>}
 
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Full name</label>
-        <input
-          type="text"
-          value={form.name}
-          onChange={update('name')}
-          className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-500 text-sm"
-          required
-        />
+        <label htmlFor="reg-name" className="block text-sm font-medium text-slate-700 mb-1.5">Full name</label>
+        <input id="reg-name" type="text" value={form.name} onChange={update('name')} className="input-field" />
+        <FieldError message={fieldErrors.name} />
       </div>
 
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Email</label>
-        <input
-          type="email"
-          value={form.email}
-          onChange={update('email')}
-          className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-500 text-sm"
-          required
-        />
+        <label htmlFor="reg-email" className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+        <input id="reg-email" type="email" value={form.email} onChange={update('email')} className="input-field" placeholder="you@company.com" />
+        <FieldError message={fieldErrors.email} />
       </div>
 
       <div>
-        <label className="block text-sm text-gray-700 mb-1">
-          Mobile <span className="text-gray-400 font-normal">(optional)</span>
+        <label htmlFor="reg-mobile" className="block text-sm font-medium text-slate-700 mb-1.5">
+          Mobile <span className="text-slate-400 font-normal">(optional)</span>
         </label>
-        <input
-          type="tel"
-          value={form.mobile}
-          onChange={update('mobile')}
-          className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-500 text-sm"
-          placeholder="9876543210"
-        />
+        <input id="reg-mobile" type="tel" value={form.mobile} onChange={update('mobile')} className="input-field" placeholder="9876543210" />
+        <FieldError message={fieldErrors.mobile} />
       </div>
 
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Password</label>
-        <input
-          type="password"
-          value={form.password}
-          onChange={update('password')}
-          className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-500 text-sm"
-          minLength={6}
-          required
-        />
+        <label htmlFor="reg-password" className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+        <input id="reg-password" type="password" value={form.password} onChange={update('password')} className="input-field" placeholder="Minimum 6 characters" />
+        <FieldError message={fieldErrors.password} />
       </div>
 
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Role</label>
-        <select
-          value={form.role}
-          onChange={update('role')}
-          className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-500 text-sm bg-white"
-        >
-          <option value="Standard">Standard</option>
-          <option value="Supervisor">Supervisor</option>
+        <label htmlFor="reg-role" className="block text-sm font-medium text-slate-700 mb-1.5">Account role</label>
+        <select id="reg-role" value={form.role} onChange={update('role')} className="input-field">
+          <option value="Standard">Standard — book and cancel own slots</option>
+          <option value="Supervisor">Supervisor — can cancel any booking</option>
         </select>
-        <p className="text-xs text-gray-400 mt-1">Supervisors can cancel any booking.</p>
+        <FieldError message={fieldErrors.role} />
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 disabled:opacity-60 text-white text-sm font-medium rounded transition"
-      >
+      <button type="submit" disabled={loading} className="btn-primary w-full">
         {loading ? 'Sending code…' : 'Send verification code'}
       </button>
     </form>

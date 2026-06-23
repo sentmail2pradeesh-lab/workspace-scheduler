@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
+import { useSocket, useSocketConnected } from '../context/SocketContext';
 import BookingModal from './BookingModal';
 import {
   formatDisplayDate,
@@ -14,9 +14,24 @@ import {
   todayString,
 } from '../utils/time';
 
+function StatCard({ label, value, tone = 'default' }) {
+  const tones = {
+    default: 'text-slate-900',
+    danger: 'text-red-600',
+    success: 'text-emerald-700',
+  };
+  return (
+    <div className="card px-5 py-4">
+      <p className={`text-2xl font-semibold tabular-nums ${tones[tone]}`}>{value}</p>
+      <p className="text-xs text-slate-500 mt-1">{label}</p>
+    </div>
+  );
+}
+
 export default function Calendar() {
   const { user, logout, isSupervisor } = useAuth();
   const socket = useSocket();
+  const connected = useSocketConnected();
   const [date, setDate] = useState(todayString());
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,9 +72,7 @@ export default function Calendar() {
       setActionError('');
     };
 
-    const onReconnect = () => {
-      refreshBookings(false);
-    };
+    const onReconnect = () => refreshBookings(false);
 
     socket.on('schedule:updated', onScheduleUpdated);
     socket.on('connect', onReconnect);
@@ -118,185 +131,181 @@ export default function Calendar() {
     timeRows.forEach((slot) => {
       const slotStart = slot.hour * 60 + slot.minute;
       const slotEnd = slotStart + SLOT_MINUTES;
-      if (isSlotInPast(date, slot.hour, slot.minute)) {
-        past += 1;
-      } else if (getBookingForSlot(bookings, slotStart, slotEnd)) {
-        booked += 1;
-      }
+      if (isSlotInPast(date, slot.hour, slot.minute)) past += 1;
+      else if (getBookingForSlot(bookings, slotStart, slotEnd)) booked += 1;
     });
 
     const total = timeRows.length;
-    const available = total - booked - past;
-    const utilization = total > 0 ? Math.round((booked / total) * 100) : 0;
-
-    return { total, booked, available, past, utilization };
+    return { total, booked, available: total - booked - past, past };
   }, [bookings, date, timeRows]);
 
+  const utilization = stats.total > 0 ? Math.round((stats.booked / stats.total) * 100) : 0;
+  const initials = user.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-base font-semibold text-gray-900">Premium Conference Room</h1>
-            <p className="text-xs text-gray-500">{user.name} · {user.role}</p>
+    <div className="min-h-screen bg-slate-100">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+              WS
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-base font-semibold text-slate-900 truncate">Premium Conference Room</h1>
+              <p className="text-xs text-slate-500 truncate">Shared workspace scheduler</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-green-700">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              Live
+
+          <div className="flex items-center gap-3 shrink-0">
+            <span className={`hidden sm:inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
+              connected
+                ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                : 'text-slate-500 bg-slate-50 border-slate-200'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+              {connected ? 'Live' : 'Connecting'}
             </span>
-            <button
-              onClick={logout}
-              className="text-sm px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
-            >
+            <div className="hidden sm:flex items-center gap-2 pl-1">
+              <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-semibold">
+                {initials}
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium text-slate-900 leading-tight">{user.name}</p>
+                <p className="text-xs text-slate-500">{user.role}</p>
+              </div>
+            </div>
+            <button type="button" onClick={logout} className="btn-secondary text-sm py-2">
               Sign out
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-lg font-medium text-gray-900">{formatDisplayDate(date)}</h2>
-            <p className="text-xs text-gray-500">9:00 AM – 6:00 PM · 30-minute slots</p>
+            <h2 className="text-xl font-semibold text-slate-900">{formatDisplayDate(date)}</h2>
+            <p className="text-sm text-slate-500 mt-1">Operating hours: 9:00 AM – 6:00 PM · 30-minute slots</p>
           </div>
-          <input
-            type="date"
-            value={date}
-            min={todayString()}
-            onChange={handleDateChange}
-            className="px-3 py-2 rounded border border-gray-300 text-sm focus:outline-none focus:border-gray-500"
-          />
+          <div>
+            <label htmlFor="schedule-date" className="block text-xs font-medium text-slate-500 mb-1.5">Select date</label>
+            <input
+              id="schedule-date"
+              type="date"
+              value={date}
+              min={todayString()}
+              onChange={handleDateChange}
+              className="input-field sm:w-auto"
+            />
+          </div>
         </div>
 
         {(actionError || error) && (
-          <div className="mb-4 bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">
-            {actionError || error}
-          </div>
+          <div className="alert-error mb-5">{actionError || error}</div>
         )}
 
-        <div className="grid grid-cols-3 gap-3 mb-5">
-          <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-            <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Total slots</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+          <StatCard label="Total slots" value={stats.total} />
+          <StatCard label="Booked" value={stats.booked} tone="danger" />
+          <StatCard label="Available" value={stats.available} tone="success" />
+        </div>
+
+        <div className="card px-5 py-4 mb-5">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className="font-medium text-slate-700">Room utilization</span>
+            <span>{utilization}% booked · {stats.past} past</span>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-            <p className="text-2xl font-semibold text-red-600">{stats.booked}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Booked</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-            <p className="text-2xl font-semibold text-green-700">{stats.available}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Available</p>
+          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+            <div className="bg-red-400 h-full transition-all duration-300" style={{ width: `${(stats.booked / stats.total) * 100}%` }} />
+            <div className="bg-slate-300 h-full transition-all duration-300" style={{ width: `${(stats.past / stats.total) * 100}%` }} />
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 mb-5">
-          <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-            <span>Room utilization</span>
-            <span>{stats.utilization}% booked · {stats.past} past</span>
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-slate-900">Daily schedule</h3>
+            <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-200" /> Available</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-100 border border-red-200" /> Reserved</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-200" /> Past</span>
+            </div>
           </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-            <div
-              className="bg-red-400 h-full transition-all"
-              style={{ width: `${(stats.booked / stats.total) * 100}%` }}
-            />
-            <div
-              className="bg-gray-300 h-full transition-all"
-              style={{ width: `${(stats.past / stats.total) * 100}%` }}
-            />
-          </div>
-        </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-sm text-gray-400">Loading…</div>
+            <div className="py-16 text-center text-sm text-slate-400">Loading schedule…</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs text-gray-500">
-                  <th className="px-4 py-2.5 w-28 font-medium">Time</th>
-                  <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="px-4 py-2.5 w-40 font-medium text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {timeRows.map((slot) => {
-                  const slotStart = slot.hour * 60 + slot.minute;
-                  const slotEnd = slotStart + SLOT_MINUTES;
-                  const booking = getBookingForSlot(bookings, slotStart, slotEnd);
-                  const isReserved = !!booking;
-                  const isStart = isSlotStartOfBooking(booking, slotStart);
-                  const isOwn = Number(booking?.userId) === Number(user.id);
-                  const isPast = isSlotInPast(date, slot.hour, slot.minute);
-                  const isCanceling = booking && cancelingId === Number(booking.id);
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-5 py-3 w-32 font-medium">Time</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 w-44 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {timeRows.map((slot) => {
+                    const slotStart = slot.hour * 60 + slot.minute;
+                    const slotEnd = slotStart + SLOT_MINUTES;
+                    const booking = getBookingForSlot(bookings, slotStart, slotEnd);
+                    const isReserved = !!booking;
+                    const isStart = isSlotStartOfBooking(booking, slotStart);
+                    const isOwn = Number(booking?.userId) === Number(user.id);
+                    const isPast = isSlotInPast(date, slot.hour, slot.minute);
+                    const isCanceling = booking && cancelingId === Number(booking.id);
 
-                  return (
-                    <tr
-                      key={`${slot.hour}-${slot.minute}`}
-                      className={isPast ? 'bg-gray-50 text-gray-400' : isReserved ? 'bg-red-50/50' : ''}
-                    >
-                      <td className="px-4 py-3 font-medium text-gray-700">{slot.label}</td>
-                      <td className="px-4 py-3">
-                        {isPast ? (
-                          <span className="text-gray-400">Past</span>
-                        ) : isReserved ? (
-                          isStart ? (
-                            <span className="text-gray-800">
-                              <span className="font-medium text-red-700">Reserved</span>
-                              {' · '}
-                              {booking.userName}
-                              <span className="text-gray-500 ml-1">
-                                ({formatTime12(booking.startTime)}–{formatTime12(booking.endTime)})
-                              </span>
-                            </span>
+                    return (
+                      <tr
+                        key={`${slot.hour}-${slot.minute}`}
+                        className={isPast ? 'bg-slate-50/80' : isReserved ? 'bg-red-50/40' : 'hover:bg-slate-50/60'}
+                      >
+                        <td className="px-5 py-3.5 font-medium text-slate-700 whitespace-nowrap">{slot.label}</td>
+                        <td className="px-5 py-3.5">
+                          {isPast ? (
+                            <span className="text-slate-400">Past</span>
+                          ) : isReserved ? (
+                            isStart ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1.5 text-red-700 font-medium">Reserved</span>
+                                <p className="text-slate-600 mt-0.5">
+                                  {booking.userName}
+                                  <span className="text-slate-400"> · {formatTime12(booking.startTime)}–{formatTime12(booking.endTime)}</span>
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )
                           ) : (
-                            <span className="text-gray-400 italic">—</span>
-                          )
-                        ) : (
-                          <span className="text-green-700">Available</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {!isPast && isReserved && isStart && (
-                          <div className="flex justify-end gap-2">
-                            {isOwn && (
-                              <button
-                                type="button"
-                                disabled={isCanceling}
-                                onClick={() => handleCancel(booking.id)}
-                                className="text-xs px-2.5 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                              >
-                                {isCanceling ? 'Cancelling…' : 'Cancel'}
-                              </button>
-                            )}
-                            {isSupervisor && !isOwn && (
-                              <button
-                                type="button"
-                                disabled={isCanceling}
-                                onClick={() => handleCancel(booking.id, true)}
-                                className="text-xs px-2.5 py-1 rounded border border-amber-400 text-amber-800 hover:bg-amber-50 disabled:opacity-50"
-                              >
-                                {isCanceling ? 'Cancelling…' : 'Cancel Override'}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        {!isPast && !isReserved && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSlot(slot)}
-                            className="text-xs px-2.5 py-1 rounded bg-gray-800 text-white hover:bg-gray-900"
-                          >
-                            Book
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            <span className="text-emerald-700 font-medium">Available</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                          {!isPast && isReserved && isStart && (
+                            <div className="flex justify-end gap-2">
+                              {isOwn && (
+                                <button type="button" disabled={isCanceling} onClick={() => handleCancel(booking.id)} className="btn-danger">
+                                  {isCanceling ? 'Cancelling…' : 'Cancel'}
+                                </button>
+                              )}
+                              {isSupervisor && !isOwn && (
+                                <button type="button" disabled={isCanceling} onClick={() => handleCancel(booking.id, true)} className="btn-warning">
+                                  {isCanceling ? 'Cancelling…' : 'Cancel Override'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {!isPast && !isReserved && (
+                            <button type="button" onClick={() => setSelectedSlot(slot)} className="btn-primary text-xs py-1.5 px-3">
+                              Book
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </main>

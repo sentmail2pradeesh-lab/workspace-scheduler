@@ -3,15 +3,12 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
-      colors: {
-        brand: {
-          50: '#f0f7ff',
-          100: '#e0effe',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          900: '#1e3a5f',
-        },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        soft: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
+        panel: '0 4px 24px -4px rgb(15 23 42 / 0.08)',
       },
     },
   },

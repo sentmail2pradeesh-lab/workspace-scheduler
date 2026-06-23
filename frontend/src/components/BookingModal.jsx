@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { formatTime12, toTimeString } from '../utils/time';
+import { formatDisplayDate, formatTime12, toTimeString } from '../utils/time';
 
 export default function BookingModal({ slot, date, onClose, onBook }) {
   const defaultEndHour = slot.hour + (slot.minute === 30 ? 1 : 0);
@@ -34,32 +34,31 @@ export default function BookingModal({ slot, date, onClose, onBook }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="bg-white rounded-lg border border-gray-200 shadow-lg w-full max-w-sm">
-        <div className="px-5 py-4 border-b border-gray-200">
-          <h2 className="text-base font-medium text-gray-900">Book slot</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {date} · {formatTime12(startTime)}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+      <div className="card shadow-panel w-full max-w-md overflow-hidden">
+        <div className="px-6 py-5 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900">Reserve conference room</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {formatDisplayDate(date)} · starting {formatTime12(startTime)}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {error && (
-            <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">
-              {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {error && <div className="alert-error">{error}</div>}
 
           <div>
-            <label className="block text-sm text-gray-700 mb-1">End time</label>
+            <label htmlFor="end-time" className="block text-sm font-medium text-slate-700 mb-1.5">
+              End time
+            </label>
             <select
+              id="end-time"
               value={`${endHour}:${endMinute}`}
               onChange={(e) => {
                 const [h, m] = e.target.value.split(':').map(Number);
                 setEndHour(h);
                 setEndMinute(m);
               }}
-              className="w-full px-3 py-2 rounded border border-gray-300 text-sm focus:outline-none focus:border-gray-500"
+              className="input-field"
             >
               {endOptions.map((opt) => (
                 <option key={`${opt.hour}-${opt.minute}`} value={`${opt.hour}:${opt.minute}`}>
@@ -67,22 +66,15 @@ export default function BookingModal({ slot, date, onClose, onBook }) {
                 </option>
               ))}
             </select>
+            <p className="text-xs text-slate-400 mt-1.5">Minimum duration is 30 minutes.</p>
           </div>
 
-          <div className="flex gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">
+              Close
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-2 rounded bg-gray-800 text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-60"
-            >
-              {loading ? 'Booking…' : 'Confirm'}
+            <button type="submit" disabled={loading} className="btn-primary flex-1">
+              {loading ? 'Booking…' : 'Confirm booking'}
             </button>
           </div>
         </form>

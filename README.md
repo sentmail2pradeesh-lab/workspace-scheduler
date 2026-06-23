@@ -1,58 +1,152 @@
 # Real-Time Collaborative Workspace Scheduler
 
-A mini-MVP for booking a shared premium conference room with real-time schedule updates across all connected clients.
+A full-stack MVP for booking a shared **Premium Conference Room** in a co-working workspace. Multiple users can view, book, and cancel time slots simultaneously with **live schedule updates** — no page refresh required.
 
-## Tech Stack
+Built as part of a technical assessment using **React.js**, **Tailwind CSS**, **Node.js**, **Express.js**, and **PostgreSQL**.
 
-- **Frontend:** React 18, Vite, Tailwind CSS, Socket.io Client
-- **Backend:** Node.js, Express, Socket.io, JWT
-- **Database:** PostgreSQL
+---
+
+## Live Demo (Local)
+
+| Service   | URL                        |
+|-----------|----------------------------|
+| Frontend  | http://localhost:5173      |
+| Backend   | http://localhost:3001      |
+| Health    | http://localhost:3001/api/health |
+
+---
 
 ## Features
 
-- JWT authentication with **Standard** and **Supervisor** roles
-- Calendar grid (9:00 AM – 6:00 PM) with 30-minute slots
-- Overlap-safe booking (server rejects conflicting reservations)
-- Real-time updates via WebSockets when bookings are created or canceled
-- RBAC: Standard users cancel only their own bookings; Supervisors get **Cancel Override** on any reservation
+### Authentication & Registration
+- JWT-based login
+- Self-registration with **email OTP verification**
+- Optional mobile number
+- Role selection: **Standard** or **Supervisor**
+
+### Booking System
+- Daily schedule grid: **9:00 AM – 6:00 PM** (30-minute slots)
+- Overlap-safe booking — backend rejects conflicting reservations
+- Past dates and past time slots are blocked
+- Dashboard stats: total slots, booked, available, utilization
+
+### Real-Time Updates
+- **Socket.io** broadcasts `schedule:updated` after every booking or cancellation
+- All connected clients sync instantly
+- Works for standard cancel and supervisor **Cancel Override**
+
+### Role-Based Access Control (RBAC)
+| Role       | Permissions                                      |
+|------------|--------------------------------------------------|
+| Standard   | Book slots · Cancel **own** bookings only        |
+| Supervisor | Book slots · **Cancel Override** on any booking  |
+
+---
+
+## Tech Stack
+
+| Layer      | Technology                          |
+|------------|-------------------------------------|
+| Frontend   | React 18, Vite, Tailwind CSS        |
+| Backend    | Node.js, Express.js, Socket.io      |
+| Database   | PostgreSQL                          |
+| Auth       | JWT, bcrypt, email OTP (nodemailer) |
+
+---
+
+## Project Structure
+
+```
+workspace-scheduler/
+├── backend/
+│   ├── src/
+│   │   ├── db/           # Schema, migrations, pool
+│   │   ├── middleware/   # JWT auth
+│   │   ├── routes/       # Auth & booking API
+│   │   ├── services/     # Bookings, OTP, email, broadcast
+│   │   └── index.js      # Express + Socket.io server
+│   ├── .env.example
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/   # Auth, Calendar, Modal
+│   │   ├── context/      # Auth & Socket providers
+│   │   ├── api/          # API client
+│   │   └── utils/        # Time & validation helpers
+│   └── package.json
+├── docker-compose.yml    # PostgreSQL (optional)
+└── README.md
+```
+
+---
 
 ## Prerequisites
 
-- Node.js 18+
-- PostgreSQL 14+ (or Docker)
+- **Node.js** 18 or higher
+- **PostgreSQL** 14 or higher (or Docker)
+- **SMTP credentials** for email OTP (Gmail App Password works)
 
-## Quick Start with Docker (PostgreSQL)
+---
+
+## Installation & Setup
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/sentmail2pradeesh-lab/workspace-scheduler.git
+cd workspace-scheduler
+```
+
+### 2. Start PostgreSQL
+
+**Option A — Docker**
 
 ```bash
 docker compose up -d
 ```
 
-Then follow the backend setup below. The default `.env` already points to `postgresql://postgres:postgres@localhost:5432/workspace_scheduler`.
-
-## Setup
-
-### 1. Create the database
+**Option B — Local PostgreSQL**
 
 ```sql
 CREATE DATABASE workspace_scheduler;
 ```
 
-### 2. Backend
+### 3. Backend setup
 
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env with your PostgreSQL connection string and JWT secret
+```
 
+Edit `backend/.env`:
+
+```env
+PORT=3001
+DATABASE_URL=postgresql://postgres:MyNewPassword123@localhost:5432/workspace_scheduler
+JWT_SECRET=your-long-random-secret-key
+CLIENT_URL=http://localhost:5173
+
+# Required for registration OTP
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-gmail-app-password
+SMTP_FROM=Workspace Scheduler <your-email@gmail.com>
+```
+
+Install and initialize:
+
+```bash
 npm install
 npm run db:init
 npm run db:migrate
 npm run dev
 ```
 
-Server runs at `http://localhost:3001`.
+### 4. Frontend setup
 
-### 3. Frontend
+Open a new terminal:
 
 ```bash
 cd frontend
@@ -60,44 +154,156 @@ npm install
 npm run dev
 ```
 
-App runs at `http://localhost:5173`.
+Open **http://localhost:5173** in your browser.
 
-## Registration
+---
 
-Users self-register via the **Register** tab with email OTP verification. Mobile number is optional.
+## Usage Guide
 
-Configure SMTP in `backend/.env` (see `.env.example`) so verification codes are sent to the user's email.
+### Register
+1. Click **Register**
+2. Fill in name, email, password, and role
+3. Click **Send verification code**
+4. Check your email for the 6-digit OTP
+5. Enter OTP and create your account
 
-## API Overview
+### Book a slot
+1. Sign in
+2. Select a date (today or future)
+3. Click **Book** on an available slot
+4. Choose end time and confirm
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth/register/request-otp` | No | Send registration OTP to mobile |
-| POST | `/api/auth/register/verify` | No | Verify OTP and create account |
-| POST | `/api/auth/login` | No | Login, returns JWT |
-| GET | `/api/auth/me` | Yes | Current user |
-| GET | `/api/bookings?date=YYYY-MM-DD` | Yes | List bookings for date |
-| POST | `/api/bookings` | Yes | Create booking |
-| DELETE | `/api/bookings/:id` | Yes | Cancel own booking |
-| DELETE | `/api/bookings/:id?override=true` | Supervisor | Cancel any booking |
+### Test real-time sync
+1. Open two browser windows (normal + incognito)
+2. Register/login as two different users
+3. Book a slot in one window — it appears as **Reserved** in the other instantly
+4. Cancel or use **Cancel Override** (Supervisor) — both windows update live
 
-### WebSocket Events
+---
 
-- `schedule:updated` — `{ date, bookings }` — broadcast after any booking or cancellation (including supervisor override)
+## API Reference
+
+| Method | Endpoint                              | Auth | Description                    |
+|--------|---------------------------------------|------|--------------------------------|
+| POST   | `/api/auth/register/request-otp`      | No   | Send email OTP                 |
+| POST   | `/api/auth/register/verify`           | No   | Verify OTP & create account    |
+| POST   | `/api/auth/login`                     | No   | Login, returns JWT             |
+| GET    | `/api/auth/me`                        | Yes  | Current user profile           |
+| GET    | `/api/bookings?date=YYYY-MM-DD`       | Yes  | List bookings for a date       |
+| POST   | `/api/bookings`                       | Yes  | Create a booking               |
+| DELETE | `/api/bookings/:id`                   | Yes  | Cancel own booking             |
+| DELETE | `/api/bookings/:id?override=true`     | Sup. | Supervisor cancel override     |
+
+### WebSocket Event
+
+```
+schedule:updated → { date: "YYYY-MM-DD", bookings: [...] }
+```
+
+Broadcast after every successful booking or cancellation.
+
+---
 
 ## Overlap Prevention
 
-Bookings use a transactional `SELECT … FOR UPDATE` overlap check:
+Bookings use a transactional overlap check with row locking:
 
 ```sql
-start_time < new_end AND end_time > new_start
+SELECT id FROM bookings
+WHERE date = $1
+  AND start_time < $end_time
+  AND end_time > $start_time
+FOR UPDATE;
 ```
 
-If User A books 14:00–15:00, User B cannot book 14:30–15:30 (HTTP 409).
+Example: If User A books **2:00 PM – 3:00 PM**, User B cannot book **2:30 PM – 3:30 PM** (HTTP 409).
 
-## Testing Real-Time Updates
+---
 
-1. Open `http://localhost:5173` in two browser windows (or normal + incognito).
-2. Log in as Alice in one, Bob in the other.
-3. Book a slot in one window — it appears as **Reserved** in the other instantly.
-4. Log in as Supervisor to use **Cancel Override** on another user's booking.
+## Environment Variables
+
+| Variable       | Required | Description                          |
+|----------------|----------|--------------------------------------|
+| `PORT`         | No       | Backend port (default: 3001)         |
+| `DATABASE_URL` | Yes      | PostgreSQL connection string         |
+| `JWT_SECRET`   | Yes      | Secret for signing JWT tokens        |
+| `CLIENT_URL`   | No       | Frontend URL for CORS (default: 5173)|
+| `SMTP_HOST`    | Yes*     | SMTP server hostname                 |
+| `SMTP_PORT`    | No       | SMTP port (default: 587)             |
+| `SMTP_USER`    | Yes*     | SMTP username / email                |
+| `SMTP_PASS`    | Yes*     | SMTP password / app password         |
+| `SMTP_FROM`    | No       | Sender display name                  |
+
+*Required for user registration.
+
+---
+
+## Scripts
+
+### Backend
+
+| Command            | Description                |
+|--------------------|----------------------------|
+| `npm run dev`      | Start dev server (watch)   |
+| `npm start`        | Start production server    |
+| `npm run db:init`  | Create database tables     |
+| `npm run db:migrate` | Apply schema migrations  |
+
+### Frontend
+
+| Command         | Description              |
+|-----------------|--------------------------|
+| `npm run dev`   | Start Vite dev server    |
+| `npm run build` | Production build         |
+| `npm run preview` | Preview production build |
+
+---
+
+## What to Push to GitHub
+
+Include these files/folders:
+
+```
+✅ backend/          (source code + package.json + .env.example)
+✅ frontend/         (source code + package.json)
+✅ docker-compose.yml
+✅ README.md
+✅ .gitignore
+```
+
+Do **NOT** commit:
+
+```
+❌ backend/.env          (contains secrets)
+❌ frontend/.env
+❌ node_modules/
+❌ dist/
+❌ .DS_Store
+```
+
+---
+
+## Troubleshooting
+
+| Issue                          | Solution                                              |
+|--------------------------------|-------------------------------------------------------|
+| OTP not received               | Check SMTP settings in `.env`; use Gmail App Password |
+| `npm install` SSL error        | Run `npm install --strict-ssl=false` on Windows       |
+| Cancel shows "Booking not found" | Refresh page; ensure backend is running latest code |
+| Real-time not updating         | Confirm backend on port 3001; check Live badge in UI  |
+| Database connection failed     | Verify PostgreSQL is running and `DATABASE_URL` is correct |
+
+---
+
+## Author
+
+**Pradeeshwaran M**  
+Technical Assessment — Real-Time Collaborative Workspace Scheduler
+
+GitHub: [https://github.com/sentmail2pradeesh-lab/workspace-scheduler](https://github.com/YOUR_USERNAME/workspace-scheduler)
+
+---
+
+## License
+
+This project was built for evaluation purposes.

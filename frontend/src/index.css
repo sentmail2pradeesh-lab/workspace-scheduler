@@ -2,7 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: 'Inter', system-ui, sans-serif;
-  @apply bg-gray-50 text-gray-900 antialiased;
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+@layer components {
+  .input-field {
+    @apply w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition;
+  }
+
+  .input-field:disabled {
+    @apply bg-slate-50 text-slate-500 cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-4 py-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-red-200 bg-white hover:bg-red-50 text-red-700 text-xs font-medium transition disabled:opacity-50;
+  }
+
+  .btn-warning {
+    @apply inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-medium transition disabled:opacity-50;
+  }
+
+  .card {
+    @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+  }
+
+  .alert-error {
+    @apply bg-red-50 text-red-700 text-sm px-3.5 py-2.5 rounded-lg border border-red-100;
+  }
+
+  .alert-success {
+    @apply bg-emerald-50 text-emerald-800 text-sm px-3.5 py-2.5 rounded-lg border border-emerald-100;
+  }
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }

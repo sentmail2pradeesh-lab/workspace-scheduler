@@ -1,17 +1,23 @@
 import { useState } from 'react';
+import { validateLoginForm } from '../utils/validation';
 
 export default function LoginForm({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    const errors = validateLoginForm(email, password);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setLoading(true);
     try {
-      await onLogin(email, password);
+      await onLogin(email.trim(), password);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -20,40 +26,47 @@ export default function LoginForm({ onLogin }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">
-          {error}
-        </div>
-      )}
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Welcome back</h2>
+        <p className="text-sm text-slate-500 mt-1">Sign in to manage your bookings</p>
+      </div>
+
+      {error && <div className="alert-error">{error}</div>}
 
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Email</label>
+        <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 mb-1.5">
+          Email address
+        </label>
         <input
+          id="login-email"
           type="email"
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-500 text-sm"
-          required
+          className={`input-field ${fieldErrors.email ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+          placeholder="you@company.com"
         />
+        {fieldErrors.email && <p className="text-xs text-red-600 mt-1">{fieldErrors.email}</p>}
       </div>
 
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Password</label>
+        <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1.5">
+          Password
+        </label>
         <input
+          id="login-password"
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-500 text-sm"
-          required
+          className={`input-field ${fieldErrors.password ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+          placeholder="Enter your password"
         />
+        {fieldErrors.password && <p className="text-xs text-red-600 mt-1">{fieldErrors.password}</p>}
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 disabled:opacity-60 text-white text-sm font-medium rounded transition"
-      >
+      <button type="submit" disabled={loading} className="btn-primary w-full">
         {loading ? 'Signing in…' : 'Sign in'}
       </button>
     </form>
