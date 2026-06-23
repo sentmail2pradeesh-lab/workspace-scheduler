@@ -122,7 +122,7 @@ Edit `backend/.env`:
 
 ```env
 PORT=3001
-DATABASE_URL=postgresql://postgres:MyNewPassword123@localhost:5432/workspace_scheduler
+DATABASE_URL=postgresql://postgres:your-password@localhost:5432/workspace_scheduler
 JWT_SECRET=your-long-random-secret-key
 CLIENT_URL=http://localhost:5173
 
